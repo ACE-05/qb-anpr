@@ -18,7 +18,9 @@ CreateThread(function()
                 z = result[i].z,
                 heading = result[i].heading,
                 deployedBy = result[i].deployed_by,
-                deployedTime = result[i].deployed_time
+                deployedTime = result[i].deployed_time,
+                model = result[i].model or 'prop_cctv_cam_01a', -- Default model for existing cameras
+                itemType = result[i].item_type or 'anpr_camera'
             }
         end
     end
@@ -58,8 +60,8 @@ function GetStreetName(coords)
     return 'Grid Ref: ' .. math.floor(coords.x) .. ', ' .. math.floor(coords.y)
 end
 
--- Camera Management Events
-RegisterNetEvent('qb-anpr:server:deployCamera', function(coords, heading)
+-- MODIFIED: Camera deployment with custom models
+RegisterNetEvent('qb-anpr:server:deployCamera', function(coords, heading, itemType)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
     
@@ -67,20 +69,27 @@ RegisterNetEvent('qb-anpr:server:deployCamera', function(coords, heading)
         return
     end
     
-    -- Check if player has ANPR camera item
-    local hasItem = Player.Functions.GetItemByName('anpr_camera')
+    -- Get item configuration
+    local itemConfig = Config.Items[itemType]
+    if not itemConfig then
+        TriggerClientEvent('QBCore:Notify', src, 'Invalid ANPR device', 'error')
+        return
+    end
+    
+    -- Check if player has the specific ANPR item
+    local hasItem = Player.Functions.GetItemByName(itemType)
     if not hasItem then
-        TriggerClientEvent('QBCore:Notify', src, 'You need an ANPR camera unit to deploy', 'error')
+        TriggerClientEvent('QBCore:Notify', src, 'You need a ' .. itemConfig.label .. ' to deploy', 'error')
         return
     end
     
     -- Remove item
-    Player.Functions.RemoveItem('anpr_camera', 1)
-    TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['anpr_camera'], 'remove')
+    Player.Functions.RemoveItem(itemType, 1)
+    TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[itemType], 'remove')
     
-    -- Deploy camera
-    local cameraId = MySQL.Sync.insert('INSERT INTO anpr_cameras (x, y, z, heading, deployed_by, deployed_time) VALUES (?, ?, ?, ?, ?, ?)', {
-        coords.x, coords.y, coords.z, heading, Player.PlayerData.citizenid, os.date('%Y-%m-%d %H:%M:%S')
+    -- Deploy camera with custom model
+    local cameraId = MySQL.Sync.insert('INSERT INTO anpr_cameras (x, y, z, heading, deployed_by, deployed_time, model, item_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', {
+        coords.x, coords.y, coords.z, heading, Player.PlayerData.citizenid, os.date('%Y-%m-%d %H:%M:%S'), itemConfig.model, itemType
     })
     
     anprCameras[cameraId] = {
@@ -90,20 +99,25 @@ RegisterNetEvent('qb-anpr:server:deployCamera', function(coords, heading)
         z = coords.z,
         heading = heading,
         deployedBy = Player.PlayerData.citizenid,
-        deployedTime = os.date('%Y-%m-%d %H:%M:%S')
+        deployedTime = os.date('%Y-%m-%d %H:%M:%S'),
+        model = itemConfig.model,
+        itemType = itemType,
+        range = itemConfig.range
     }
     
     TriggerClientEvent('qb-anpr:client:updateCameras', -1, anprCameras)
-    TriggerClientEvent('QBCore:Notify', src, '📹 ANPR Camera deployed successfully', 'success')
+    TriggerClientEvent('QBCore:Notify', src, '📹 ' .. itemConfig.label .. ' deployed successfully', 'success')
     
     -- Log deployment
-    print(('[ANPR] Camera deployed by %s [%s] at %s, %s, %s'):format(
+    print(('[ANPR] %s deployed by %s [%s] at %s, %s, %s'):format(
+        itemConfig.label,
         GetPlayerName(Player.PlayerData.citizenid),
         Player.PlayerData.citizenid,
         coords.x, coords.y, coords.z
     ))
 end)
 
+-- MODIFIED: Camera removal with item return
 RegisterNetEvent('qb-anpr:server:removeCamera', function(cameraId)
     local src = source
     local Player = QBCore.Functions.GetPlayer(src)
@@ -113,16 +127,20 @@ RegisterNetEvent('qb-anpr:server:removeCamera', function(cameraId)
     end
     
     if anprCameras[cameraId] then
-        -- Give back item
-        Player.Functions.AddItem('anpr_camera', 1)
-        TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items['anpr_camera'], 'add')
+        local camera = anprCameras[cameraId]
+        local itemType = camera.itemType or 'anpr_camera' -- Default to standard camera
+        local itemConfig = Config.Items[itemType]
+        
+        -- Give back the correct item
+        Player.Functions.AddItem(itemType, 1)
+        TriggerClientEvent('inventory:client:ItemBox', src, QBCore.Shared.Items[itemType], 'add')
         
         -- Remove from database
         MySQL.Async.execute('DELETE FROM anpr_cameras WHERE id = ?', { cameraId })
         anprCameras[cameraId] = nil
         
         TriggerClientEvent('qb-anpr:client:updateCameras', -1, anprCameras)
-        TriggerClientEvent('QBCore:Notify', src, '📦 ANPR Camera packed up successfully', 'success')
+        TriggerClientEvent('QBCore:Notify', src, '📦 ' .. (itemConfig.label or 'ANPR Camera') .. ' packed up successfully', 'success')
         
         print(('[ANPR] Camera %s removed by %s [%s]'):format(
             cameraId,
@@ -130,6 +148,19 @@ RegisterNetEvent('qb-anpr:server:removeCamera', function(cameraId)
             Player.PlayerData.citizenid
         ))
     end
+end)
+
+-- Create useable items for each ANPR type
+CreateThread(function()
+    Wait(2000) -- Wait for QBCore to be ready
+    
+    for itemName, itemConfig in pairs(Config.Items) do
+        QBCore.Functions.CreateUseableItem(itemName, function(source, item)
+            TriggerClientEvent('qb-anpr:client:useAnprItem', source, itemName, itemConfig)
+        end)
+    end
+    
+    print('[ANPR] Registered ' .. #Config.Items .. ' ANPR item types')
 end)
 
 -- Get camera list
