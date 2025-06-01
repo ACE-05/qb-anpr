@@ -22,6 +22,16 @@ server_scripts {
     'server/detection.lua'
 }
 
+-- UI files
+ui_page 'html/index.html'  -- Points to your main HTML file
+
+files {
+    'html/index.html',
+    'html/style.css',
+    'html/script.js',
+    -- add any assets you use, like fonts or images:
+    -- 'html/assets/*.png',
+}
 dependencies {
     'qb-core',
     'qb-menu',
