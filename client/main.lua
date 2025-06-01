@@ -3,10 +3,9 @@ local QBCore = exports['qb-core']:GetCoreObject()
 local PlayerData = {}
 local anprCameras = {}
 local anprBlips = {}
-local flaggedVehicles = {}
 local isPolice = false
 
--- Initialize
+-- Events
 RegisterNetEvent('QBCore:Client:OnPlayerLoaded', function()
     PlayerData = QBCore.Functions.GetPlayerData()
     checkPoliceJob()
@@ -22,25 +21,59 @@ function checkPoliceJob()
         isPolice = true
     else
         isPolice = false
-        -- Remove ANPR blips if not police
-        for k, v in pairs(anprBlips) do
-            RemoveBlip(v)
-        end
+        for k, v in pairs(anprBlips) do RemoveBlip(v) end
         anprBlips = {}
     end
 end
 
--- ANPR Camera Management
+-- Open ANPR UI
+RegisterNetEvent('qb-anpr:client:openMainMenu', function()
+    if not isPolice then return end
+    SetNuiFocus(true, true)
+    SendNUIMessage({ action = 'showUI' })
+end)
+
+-- Close ANPR UI
+RegisterNUICallback('closeUI', function(_, cb)
+    SetNuiFocus(false, false)
+    cb('ok')
+end)
+
+-- NUI Callbacks
+RegisterNUICallback('flagVehicle', function(data, cb)
+    -- You can expand this to send to the server
+    print("Flagging:", json.encode(data))
+    QBCore.Functions.Notify("Vehicle flagged: " .. data.plate, "success")
+    cb({ status = "success" })
+end)
+
+RegisterNUICallback('unflagVehicle', function(data, cb)
+    print("Unflagging:", json.encode(data))
+    QBCore.Functions.Notify("Vehicle unflagged: " .. data.plate, "success")
+    cb({ status = "success" })
+end)
+
+RegisterNUICallback('searchVehicle', function(data, cb)
+    print("Searching:", data.plate)
+    -- Return dummy result
+    cb({ status = "success", result = {
+        plate = data.plate,
+        owner = "John Doe",
+        notes = "No issues found",
+    }})
+end)
+
+-- ANPR Camera Deployment
 RegisterNetEvent('qb-anpr:client:deployCamera', function()
     if not isPolice then
         QBCore.Functions.Notify('You are not authorised to use this equipment', 'error')
         return
     end
-    
+
     local ped = PlayerPedId()
     local coords = GetEntityCoords(ped)
     local heading = GetEntityHeading(ped)
-    
+
     QBCore.Functions.Progressbar('deploy_anpr', 'Deploying ANPR Camera Unit...', 5000, false, true, {
         disableMovement = true,
         disableCarMovement = true,
@@ -60,10 +93,10 @@ end)
 
 RegisterNetEvent('qb-anpr:client:removeCamera', function()
     if not isPolice then return end
-    
+
     local ped = PlayerPedId()
     local coords = GetEntityCoords(ped)
-    
+
     for k, camera in pairs(anprCameras) do
         local dist = #(coords - vector3(camera.x, camera.y, camera.z))
         if dist < 3.0 then
@@ -87,24 +120,18 @@ RegisterNetEvent('qb-anpr:client:removeCamera', function()
     end
 end)
 
--- Update cameras from server
+-- Update Cameras
 RegisterNetEvent('qb-anpr:client:updateCameras', function(cameras)
     anprCameras = cameras
-    
     if isPolice then
-        -- Remove old blips
-        for k, v in pairs(anprBlips) do
-            RemoveBlip(v)
-        end
+        for _, v in pairs(anprBlips) do RemoveBlip(v) end
         anprBlips = {}
-        
-        -- Create new blips
         for k, camera in pairs(anprCameras) do
             local blip = AddBlipForCoord(camera.x, camera.y, camera.z)
             SetBlipSprite(blip, 184)
             SetBlipDisplay(blip, 4)
             SetBlipScale(blip, 0.8)
-            SetBlipColour(blip, 17) -- British police blue
+            SetBlipColour(blip, 17)
             SetBlipAsShortRange(blip, true)
             BeginTextCommandSetBlipName('STRING')
             AddTextComponentString('ANPR Camera')
@@ -114,22 +141,11 @@ RegisterNetEvent('qb-anpr:client:updateCameras', function(cameras)
     end
 end)
 
--- Commands
-RegisterCommand('deployANPR', function()
-    TriggerEvent('qb-anpr:client:deployCamera')
-end)
+-- Commands and Keys
+RegisterCommand('deployANPR', function() TriggerEvent('qb-anpr:client:deployCamera') end)
+RegisterCommand('removeANPR', function() TriggerEvent('qb-anpr:client:removeCamera') end)
+RegisterCommand('anpr', function() TriggerEvent('qb-anpr:client:openMainMenu') end)
 
-RegisterCommand('removeANPR', function()
-    TriggerEvent('qb-anpr:client:removeCamera')
-end)
-
-RegisterCommand('anpr', function()
-    if isPolice then
-        TriggerEvent('qb-anpr:client:openMainMenu')
-    end
-end)
-
--- Key Mappings
 RegisterKeyMapping('deployANPR', 'Deploy ANPR Camera', 'keyboard', '')
 RegisterKeyMapping('removeANPR', 'Remove ANPR Camera', 'keyboard', '')
 RegisterKeyMapping('anpr', 'Open ANPR System', 'keyboard', '')
