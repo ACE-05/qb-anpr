@@ -81,6 +81,31 @@ function searchVehicle() {
     closeModal('searchModal');
 }
 
+// Close the entire UI
+function closeUI() {
+    const ui = document.querySelector('.container');
+    if (ui) {
+        ui.style.display = 'none';
+    }
+    
+    // Close any open modals
+    document.querySelectorAll('.modal.active').forEach(modal => {
+        modal.classList.remove('active');
+    });
+
+    // FiveM NUI focus reset (only if available)
+    if (typeof SetNuiFocus === 'function') {
+        SetNuiFocus(false, false);
+    }
+}
+
+// Close UI on ESC key press
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        closeUI();
+    }
+});
+
 // Expose functions globally for onclick handlers
 window.showFlagModal = showFlagModal;
 window.showUnflagModal = showUnflagModal;
@@ -90,3 +115,4 @@ window.flagVehicle = flagVehicle;
 window.unflagVehicle = unflagVehicle;
 window.searchVehicle = searchVehicle;
 window.closeModal = closeModal;
+window.closeUI = closeUI;
