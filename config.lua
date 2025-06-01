@@ -45,9 +45,63 @@ Config.CameraBlip = {
     name = 'ANPR Camera'
 }
 
--- Items
+-- MODIFIED: Enhanced Items Configuration with Custom Models
 Config.Items = {
-    anprCamera = 'anpr_camera'
+    -- Standard ANPR Camera
+    anpr_camera = {
+        name = 'anpr_camera',
+        label = 'ANPR Camera Unit',
+        model = 'prop_cctv_cam_01a',
+        range = 15.0,
+        deployTime = 5000,
+        animation = {
+            dict = 'amb@world_human_hammering@male@base',
+            anim = 'base',
+            flags = 49
+        }
+    },
+    
+    -- Portable ANPR Scanner
+    anpr_portable = {
+        name = 'anpr_portable',
+        label = 'Portable ANPR Scanner',
+        model = 'prop_cctv_cam_02a',
+        range = 12.0,
+        deployTime = 3000,
+        animation = {
+            dict = 'amb@world_human_clipboard@male@base',
+            anim = 'base',
+            flags = 49
+        }
+    },
+    
+    -- Handheld ANPR Device
+    anpr_handheld = {
+        name = 'anpr_handheld',
+        label = 'Handheld ANPR Device',
+        model = 'prop_police_radio',
+        range = 8.0,
+        deployTime = 2000,
+        animation = {
+            dict = 'cellphone@',
+            anim = 'cellphone_text_read_base',
+            flags = 49
+        }
+    },
+    
+    -- Advanced ANPR System
+    anpr_advanced = {
+        name = 'anpr_advanced',
+        label = 'Advanced ANPR System',
+        model = 'prop_cctv_cam_04a',
+        range = 20.0,
+        deployTime = 8000,
+        animation = {
+            dict = 'amb@world_human_welding@male@base',
+            anim = 'base',
+            flags = 49
+        }
+    }
 }
 
 -- Street Names (you can expand this for better location names)
